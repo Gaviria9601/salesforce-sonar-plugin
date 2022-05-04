@@ -19,6 +19,7 @@
  */
 package org.sonar.salesforce.base;
 
+import org.sonar.api.measures.CoreMetrics;
 import org.sonar.api.measures.Metric;
 import org.sonar.api.measures.Metrics;
 import java.io.Serializable;
@@ -68,6 +69,33 @@ public final class SalesforceMetrics implements Metrics {
             .setDomain(SalesforceMetrics.DOMAIN)
             .setBestValue(0.0)
             .setHidden(false)
+            .create();
+
+    public static final Metric<Serializable> LINES = new Metric.Builder(CoreMetrics.LINES.key(), CoreMetrics.LINES.getName(),CoreMetrics.LINES.getType() )
+            .setDescription(CoreMetrics.LINES.getDescription())
+            .setDirection(CoreMetrics.LINES.getDirection())
+            .setQualitative(CoreMetrics.LINES.getQualitative())
+            .setDomain(CoreMetrics.LINES.getDomain())
+            .setBestValue(CoreMetrics.LINES.getBestValue())
+            .setHidden(CoreMetrics.LINES.isHidden())
+            .create();
+
+    public static final Metric<Serializable> NCLOC = new Metric.Builder(CoreMetrics.NCLOC.key(), CoreMetrics.NCLOC.getName(),CoreMetrics.NCLOC.getType() )
+            .setDescription(CoreMetrics.NCLOC.getDescription())
+            .setDirection(CoreMetrics.NCLOC.getDirection())
+            .setQualitative(CoreMetrics.NCLOC.getQualitative())
+            .setDomain(CoreMetrics.NCLOC.getDomain())
+            .setBestValue(CoreMetrics.NCLOC.getBestValue())
+            .setHidden(CoreMetrics.NCLOC.isHidden())
+            .create();
+
+    public static final Metric<Serializable> COMMENT_LINES = new Metric.Builder(CoreMetrics.COMMENT_LINES.key(), CoreMetrics.COMMENT_LINES.getName(),CoreMetrics.COMMENT_LINES.getType() )
+            .setDescription(CoreMetrics.COMMENT_LINES.getDescription())
+            .setDirection(CoreMetrics.COMMENT_LINES.getDirection())
+            .setQualitative(CoreMetrics.COMMENT_LINES.getQualitative())
+            .setDomain(CoreMetrics.COMMENT_LINES.getDomain())
+            .setBestValue(CoreMetrics.COMMENT_LINES.getBestValue())
+            .setHidden(CoreMetrics.COMMENT_LINES.isHidden())
             .create();
 
 

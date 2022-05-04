@@ -20,24 +20,16 @@
 
 package org.sonar.salesforce;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Serializable;
-import javax.xml.parsers.ParserConfigurationException;
-import org.sonar.api.batch.fs.InputFile;
+import org.sonar.api.batch.fs.FilePredicate;
 import org.sonar.api.batch.fs.FileSystem;
-import org.sonar.api.batch.fs.TextRange;
+import org.sonar.api.batch.fs.InputFile;
 import org.sonar.api.batch.rule.Severity;
-import org.sonar.api.batch.sensor.issue.internal.DefaultIssueLocation;
-import org.sonar.api.batch.sensor.issue.NewIssue;
-import org.sonar.api.batch.sensor.issue.NewIssueLocation;
 import org.sonar.api.batch.sensor.Sensor;
 import org.sonar.api.batch.sensor.SensorContext;
 import org.sonar.api.batch.sensor.SensorDescriptor;
+import org.sonar.api.batch.sensor.issue.NewIssue;
+import org.sonar.api.batch.sensor.issue.NewIssueLocation;
 import org.sonar.api.measures.Metric;
-import org.sonar.api.measures.Metrics;
 import org.sonar.api.rule.RuleKey;
 import org.sonar.api.scan.filesystem.PathResolver;
 import org.sonar.api.utils.log.Logger;
@@ -45,14 +37,23 @@ import org.sonar.api.utils.log.Loggers;
 import org.sonar.api.utils.log.Profiler;
 import org.sonar.salesforce.base.SalesforceConstants;
 import org.sonar.salesforce.base.SalesforceMetrics;
+import org.sonar.salesforce.language.ApexParser;
 import org.sonar.salesforce.parser.ReportParser;
 import org.sonar.salesforce.parser.XmlReportFile;
 import org.sonar.salesforce.parser.element.Analysis;
 import org.sonar.salesforce.parser.element.File;
 import org.sonar.salesforce.parser.element.Violation;
-import org.sonar.api.measures.CoreMetrics;
-
 import org.xml.sax.SAXException;
+
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Serializable;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.stream.StreamSupport;
 
 
 public class SalesforceSensor implements Sensor {
@@ -60,6 +61,7 @@ public class SalesforceSensor implements Sensor {
     private static final String SENSOR_NAME = "Salesforce";
 
     private final FileSystem fileSystem;
+    private final FilePredicate mainFilePredicate;
     private final PathResolver pathResolver;
 
     private int totalFiles;
@@ -68,8 +70,11 @@ public class SalesforceSensor implements Sensor {
     private int majorIssuesCount;
     private int minorIssuesCount;
 
-    public SalesforceSensor(FileSystem fileSystem, PathResolver pathResolver) {
+    public SalesforceSensor(FileSystem fileSystem,PathResolver pathResolver) {
         this.fileSystem = fileSystem;
+        this.mainFilePredicate = fileSystem.predicates().and(
+                fileSystem.predicates().hasType(InputFile.Type.MAIN),
+                fileSystem.predicates().hasLanguage("apex"));
         this.pathResolver = pathResolver;
     }
 
@@ -224,10 +229,32 @@ public class SalesforceSensor implements Sensor {
         }
     }
 
+    private void processMainFile(InputFile inputFile, SensorContext context) {
+        List<String> lines;
+        try {
+            lines = Files.readAllLines(Paths.get(inputFile.absolutePath()));
+        } catch (IOException e) {
+            LOGGER.warn("could not process file: " + inputFile);
+            return;
+        }
+        ApexParser parser = new ApexParser();
+        parser.parse(lines);
+
+        LOGGER.debug("processing file: " + inputFile);
+        int linesOfCode = parser.getLineCount() - parser.getEmptyLineCount() - parser.getCommentLineCount();
+        context.newMeasure().forMetric(SalesforceMetrics.LINES).on(inputFile).withValue(parser.getLineCount()).save();
+        context.newMeasure().forMetric(SalesforceMetrics.NCLOC).on(inputFile).withValue(linesOfCode).save();
+        context.newMeasure().forMetric(SalesforceMetrics.COMMENT_LINES).on(inputFile).withValue(parser.getCommentLineCount()).save();
+
+    }
+
     @Override
     public void execute(SensorContext sensorContext) {
         Profiler profiler = Profiler.create(LOGGER);
         profiler.startInfo("Process Salesforce PMD report");
+        for (InputFile file: fileSystem.inputFiles(mainFilePredicate)){
+            processMainFile(file, sensorContext);
+        }
         try {
             Analysis analysis = parseAnalysis(sensorContext);
             this.totalFiles = analysis.getFiles().size();
